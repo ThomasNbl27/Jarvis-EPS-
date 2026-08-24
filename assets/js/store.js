@@ -20,7 +20,14 @@
       seuilAlerte: 3,         // nb d'oublis/absences/dispenses déclenchant une alerte
       enseignant: "",
       etablissement: "",
-      baseInitialisee: false
+      baseInitialisee: false,
+      codeEmpreinte: "",        // empreinte du code d'accès (jamais le code lui-même)
+      codeGrain: "",
+      codeAlgo: "",
+      codeInitialise: false,
+      delaiVerrou: 60000,       // reverrouillage après ce temps en arrière-plan
+      derniereSauvegarde: "",
+      rappelReporteAu: ""
     }
   };
 

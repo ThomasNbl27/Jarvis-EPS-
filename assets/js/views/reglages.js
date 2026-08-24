@@ -49,9 +49,41 @@
             action("import", "Restaurer une sauvegarde", "Depuis un fichier .json", "restaurer") +
           "</div>" +
           '<input type="file" id="fichier-restauration" accept="application/json,.json" hidden>' +
+          '<p class="small' + (Exports.rappelSauvegardeUtile() ? " " : " muted") + '">' +
+            (Exports.joursDepuisSauvegarde() === null
+              ? "Aucune sauvegarde téléchargée pour l'instant."
+              : "Dernière sauvegarde : " + U.dateRelative(r.derniereSauvegarde) + ".") + "</p>" +
           '<p class="small muted">Espace utilisé : ' + Store.poids() + " · " +
             Store.seances.compter() + " séances · " + Store.eleves.compter() + " élèves · " +
             Store.competences.compter() + " fiches · " + Store.attendus.compter() + " attendus</p>" +
+        "</div>" +
+      "</section>" +
+
+      /* ---- Sécurité ---- */
+      '<section class="section">' +
+        '<div class="section__head"><h2>Sécurité</h2></div>' +
+        '<div class="card card--pad stack">' +
+          '<label class="switch">' +
+            '<input type="checkbox" id="p-verrou"' + (Verrou.estActif() ? " checked" : "") + ">" +
+            '<span class="switch__track"></span>' +
+            "<span>Code d'accès à l'ouverture</span>" +
+          "</label>" +
+          (Verrou.estActif()
+            ? UI.champ({ id: "p-delai", label: "Reverrouiller après", type: "select",
+                         valeur: String(r.delaiVerrou),
+                         options: [
+                           { valeur: "0", libelle: "Dès que je quitte l'application" },
+                           { valeur: "60000", libelle: "1 minute" },
+                           { valeur: "300000", libelle: "5 minutes" },
+                           { valeur: "3600000", libelle: "1 heure" }
+                         ] }) +
+              '<div class="btn-row">' +
+                '<button class="btn btn--sm" data-changer-code type="button">Changer le code</button>' +
+                '<button class="btn btn--sm" data-verrouiller type="button">Verrouiller</button>' +
+              "</div>"
+            : "") +
+          '<p class="small muted">Le code empêche d\'ouvrir l\'application, mais ne chiffre pas ' +
+            'les données. La protection principale reste le verrouillage du téléphone lui-même.</p>' +
         "</div>" +
       "</section>" +
 
@@ -176,6 +208,39 @@
     lien("p-seuil", "seuilAlerte", function (v) { return Math.max(1, Math.min(20, Number(v) || 3)); });
     lien("p-theme", "theme");
 
+    /* Code d'accès */
+    var interrupteurVerrou = conteneur.querySelector("#p-verrou");
+    interrupteurVerrou.addEventListener("change", function () {
+      if (interrupteurVerrou.checked) {
+        demanderCode("Choisir un code", function () { App.rendre(); });
+      } else {
+        UI.confirmer({
+          titre: "Retirer le code",
+          message: "L'application s'ouvrira sans demander de code.",
+          valider: "Retirer",
+          danger: true
+        }).then(function (ok) {
+          if (!ok) { interrupteurVerrou.checked = true; return; }
+          Verrou.retirer();
+          UI.toast("Code retiré.");
+          App.rendre();
+        });
+      }
+    });
+
+    U.sur(conteneur, "click", "[data-changer-code]", function () {
+      demanderCode("Nouveau code", function () { UI.toast("Code modifié."); });
+    });
+    U.sur(conteneur, "click", "[data-verrouiller]", function () { Verrou.verrouillerMaintenant(); });
+
+    var champDelai = conteneur.querySelector("#p-delai");
+    if (champDelai) {
+      champDelai.addEventListener("change", function () {
+        Store.majReglages({ delaiVerrou: Number(champDelai.value) });
+        UI.toast("Préférence enregistrée.");
+      });
+    }
+
     /* Installation PWA */
     var boutonInstaller = conteneur.querySelector("#btn-installer");
     if (App.invitationInstallation) {
@@ -228,6 +293,43 @@
         }
         pied.querySelector("[data-fusionner]").addEventListener("click", function () { restaurer("fusionner"); });
         pied.querySelector("[data-remplacer]").addEventListener("click", function () { restaurer("remplacer"); });
+      }
+    });
+  }
+
+  /** Saisie d'un nouveau code, avec confirmation. */
+  function demanderCode(titre, surSucces) {
+    var annule = true;
+    UI.feuille({
+      titre: titre,
+      sousTitre: "Quatre chiffres",
+      taille: "sm",
+      corps:
+        UI.champ({ id: "v-code", label: "Code", type: "password", autofocus: true,
+                   attributs: ' inputmode="numeric" maxlength="4" autocomplete="new-password" pattern="[0-9]*"' }) +
+        UI.champ({ id: "v-code2", label: "Confirmer le code", type: "password",
+                   attributs: ' inputmode="numeric" maxlength="4" autocomplete="new-password" pattern="[0-9]*"' }) +
+        UI.note("Notez-le quelque part : il ne peut pas être retrouvé. En cas d'oubli, il faudra " +
+                "effacer les données et restaurer une sauvegarde.", "warn"),
+      actions:
+        '<button class="btn" data-fermer type="button">Annuler</button>' +
+        '<button class="btn btn--primary" data-valider type="button">Enregistrer</button>',
+      surMontage: function (corps, fermer, pied) {
+        pied.querySelector("[data-valider]").addEventListener("click", function () {
+          var code = corps.querySelector("#v-code").value.trim();
+          var confirmation = corps.querySelector("#v-code2").value.trim();
+          if (!/^[0-9]{4}$/.test(code)) { UI.toast("Le code doit contenir 4 chiffres.", "error"); return; }
+          if (code !== confirmation) { UI.toast("Les deux codes diffèrent.", "error"); return; }
+          Verrou.definir(code).then(function () {
+            annule = false;
+            fermer();
+            if (surSucces) surSucces();
+          });
+        });
+      },
+      surFermeture: function () {
+        // L'interrupteur ne doit pas rester allumé si rien n'a été défini.
+        if (annule && !Verrou.estActif()) App.rendre();
       }
     });
   }

@@ -95,6 +95,25 @@ Le tableau du suivi des élèves s'exporte de la même manière.
 Sur téléphone, une séance peut aussi être envoyée directement par message via le bouton
 **Partager**, et le PDF transmis par mail ou messagerie via **Envoyer le PDF**.
 
+### Code d'accès
+L'application demande un **code à 4 chiffres** à l'ouverture. Le code livré est **1707**.
+
+> ⚠️ Ce dépôt est public : le code livré est donc visible de tous. Changez-le dès
+> l'installation, dans **Réglages → Sécurité → Changer le code**. Seule une empreinte du
+> nouveau code est alors enregistrée, dans le téléphone, et il n'apparaît nulle part
+> dans le code source.
+
+Le verrou se réactive après un temps réglable passé hors de l'application (immédiatement,
+1 minute, 5 minutes, 1 heure), et peut être désactivé entièrement. Il empêche d'ouvrir
+l'application ; il ne chiffre pas les données — la protection principale reste le
+verrouillage du téléphone lui-même. En cas d'oubli, le code ne peut pas être retrouvé :
+il faut effacer les données et restaurer une sauvegarde.
+
+### Rappel de sauvegarde
+Si la dernière sauvegarde remonte à plus de trois semaines — ou s'il n'y en a jamais eu —
+un bandeau apparaît sur l'accueil avec un bouton pour la télécharger immédiatement, et un
+bouton « Plus tard » qui repousse le rappel d'une semaine.
+
 ---
 
 ## Où sont les données ?
@@ -142,6 +161,7 @@ assets/js/
   eps.js                      cycle, analyse de la dictée, mots-clés
   speech.js                   reconnaissance vocale
   ui.js                       icônes, panneaux, notifications, champs
+  verrou.js                   code d'accès à 4 chiffres
   exports.js                  Word, CSV, impression, sauvegarde
   pdf.js                      générateur de PDF (sans bibliothèque)
   views/                      accueil, séances, élèves, base EPS, PDF, réglages

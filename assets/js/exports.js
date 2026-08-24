@@ -199,7 +199,26 @@
 
   function sauvegarder() {
     U.telecharger(nomFichier("sauvegarde-jarvis-eps", "json"), Store.exporterJSON(), "application/json;charset=utf-8");
+    Store.majReglages({ derniereSauvegarde: U.aujourdhui(), rappelReporteAu: "" });
     UI.toast("Sauvegarde téléchargée.");
+  }
+
+  /** Nombre de jours depuis la dernière sauvegarde (null si aucune). */
+  function joursDepuisSauvegarde() {
+    var date = Store.reglages().derniereSauvegarde;
+    if (!date) return null;
+    var d = U.depuisISO(date);
+    if (!d) return null;
+    return Math.floor((new Date().setHours(0, 0, 0, 0) - d.getTime()) / 86400000);
+  }
+
+  /** Faut-il rappeler au professeur de sauvegarder ? */
+  function rappelSauvegardeUtile() {
+    if (!Store.seances.compter() && !Store.eleves.compter()) return false;
+    var reporte = Store.reglages().rappelReporteAu;
+    if (reporte && U.aujourdhui() < reporte) return false;
+    var jours = joursDepuisSauvegarde();
+    return jours === null || jours >= 21;
   }
 
   /* ---------- 5. Partage natif (téléphone) ---------- */
@@ -230,6 +249,8 @@
     exporterCSVSeances: exporterCSVSeances,
     exporterCSVEleves: exporterCSVEleves,
     sauvegarder: sauvegarder,
+    joursDepuisSauvegarde: joursDepuisSauvegarde,
+    rappelSauvegardeUtile: rappelSauvegardeUtile,
     partageDisponible: partageDisponible,
     partagerSeance: partagerSeance
   };

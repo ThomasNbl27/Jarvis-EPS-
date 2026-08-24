@@ -41,6 +41,16 @@
         "</div>" +
       "</section>" +
 
+      /* ---- Rappel de sauvegarde ---- */
+      (Exports.rappelSauvegardeUtile() ?
+      '<section class="section">' +
+        UI.note(rappelTexte() +
+          ' <span class="note__actions">' +
+            '<button class="btn btn--sm btn--primary" data-sauvegarde type="button">Sauvegarder</button>' +
+            '<button class="btn btn--sm btn--ghost" data-reporter type="button">Plus tard</button>' +
+          "</span>", "warn") +
+      "</section>" : "") +
+
       /* ---- Chiffres clés ---- */
       '<section class="section">' +
         '<div class="stats">' +
@@ -103,6 +113,27 @@
     U.sur(conteneur, "click", "[data-seance]", function (e, el) {
       Vues.seances.ouvrirDetail(el.getAttribute("data-seance"));
     });
+    U.sur(conteneur, "click", "[data-sauvegarde]", function () {
+      Exports.sauvegarder();
+      App.rafraichir();
+    });
+    U.sur(conteneur, "click", "[data-reporter]", function () {
+      var dans7jours = new Date();
+      dans7jours.setDate(dans7jours.getDate() + 7);
+      Store.majReglages({ rappelReporteAu: U.versISO(dans7jours) });
+      UI.toast("Rappel reporté d'une semaine.", "info");
+      App.rafraichir();
+    });
+  }
+
+  function rappelTexte() {
+    var jours = Exports.joursDepuisSauvegarde();
+    if (jours === null) {
+      return "<b>Aucune sauvegarde pour l'instant.</b> Vos données ne vivent que dans ce " +
+             "téléphone : téléchargez un fichier de secours.";
+    }
+    return "<b>Dernière sauvegarde il y a " + jours + " jours.</b> " +
+           "Un fichier de secours récent évite de tout perdre en cas de pépin.";
   }
 
   function tuile(valeur, libelle, variante) {

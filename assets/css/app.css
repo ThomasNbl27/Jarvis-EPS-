@@ -743,6 +743,74 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width:
   color: #6EE7B7; font-weight: 650; font-size: 13.5px;
 }
 
+/* ---------- 10 bis. Écran de verrouillage ---------- */
+body.est-verrouille .app,
+body.est-verrouille .toast-root { visibility: hidden; }
+
+.verrou {
+  position: fixed; inset: 0; z-index: 90;
+  display: grid; place-items: center;
+  padding: calc(var(--safe-t) + 20px) 20px calc(var(--safe-b) + 20px);
+  background: var(--bg);
+  background-image:
+    radial-gradient(90% 60% at 50% -10%, color-mix(in srgb, var(--accent) 16%, transparent) 0%, transparent 65%);
+  animation: fade .2s var(--ease);
+}
+.verrou__boite {
+  width: min(340px, 100%);
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);
+  text-align: center;
+}
+.verrou__marque {
+  width: 54px; height: 54px; display: grid; place-items: center;
+  border-radius: 16px; color: var(--accent-ink);
+  background: linear-gradient(150deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 70%, #0B5F45) 100%);
+  box-shadow: var(--shadow-2);
+}
+.verrou__marque svg { width: 30px; height: 30px; }
+.verrou__boite h1 { font-size: 20px; }
+.verrou__boite p { font-size: 14px; color: var(--muted); min-height: 21px; }
+
+.verrou__points { display: flex; gap: 14px; margin: var(--sp-2) 0 var(--sp-4); }
+.verrou__point {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 1.5px solid var(--border-strong); background: transparent;
+  transition: background .14s var(--ease), border-color .14s var(--ease), transform .14s var(--ease);
+}
+.verrou__point.is-on {
+  background: var(--accent); border-color: var(--accent); transform: scale(1.14);
+}
+
+.verrou__clavier {
+  display: grid; grid-template-columns: repeat(3, 72px); gap: 16px;
+  justify-content: center;
+}
+.verrou__clavier button {
+  width: 72px; height: 72px; border-radius: 50%; padding: 0;
+  border: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+  font-size: 24px; font-weight: 500; font-family: var(--font-num);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: background .12s var(--ease), transform .1s var(--ease);
+}
+.verrou__clavier button:active { background: var(--surface-3); transform: scale(.93); }
+.verrou__clavier button[data-effacer] { background: transparent; border-color: transparent; color: var(--muted); }
+.verrou__clavier button[data-effacer] svg { width: 24px; height: 24px; }
+.verrou .link { margin-top: var(--sp-4); }
+
+.tremble { animation: tremble .4s var(--ease); }
+@keyframes tremble {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+/* Actions à l'intérieur d'un encadré d'information */
+.note__actions { display: inline-flex; gap: 8px; margin-top: 10px; }
+
 /* ---------- 11. Impression ---------- */
 .print-root { display: none; }
 

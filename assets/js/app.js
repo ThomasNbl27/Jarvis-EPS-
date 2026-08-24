@@ -4,7 +4,7 @@
 (function (global) {
   "use strict";
 
-  var VERSION = "1.1.0";
+  var VERSION = "1.2.0";
   var ORDRE = ["accueil", "seances", "eleves", "base", "pdf", "reglages"];
   var vueCourante = "accueil";
 
@@ -103,6 +103,7 @@
     demarrer: function () {
       App.appliquerTheme();
       Seed.initialiser();
+      Verrou.surveiller();
 
       if (!Store.stockageDisponible()) {
         UI.toast("Stockage bloqué : quittez la navigation privée pour conserver vos données.", "error", 8000);
@@ -151,6 +152,16 @@
         });
       }
 
+      // Le contenu n'est dessiné qu'une fois le code saisi : rien ne
+      // s'affiche derrière l'écran de verrouillage. L'amorçage du code
+      // livré est asynchrone, d'où l'attente avant de décider.
+      Verrou.initialiser().then(function () {
+        if (Verrou.estActif()) Verrou.afficher(App.lancerInterface);
+        else App.lancerInterface();
+      });
+    },
+
+    lancerInterface: function () {
       var depart = (location.hash || "#accueil").slice(1);
       App.aller(Vues[depart] ? depart : "accueil");
     }
