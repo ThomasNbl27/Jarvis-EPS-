@@ -1,0 +1,1215 @@
+import tkinter as tkfrom tkinter import messagebox, ttkimport sqlite3import queueimport jsonimport sounddevice as sd
+from vosk import Model, KaldiRecognizer
+# =========================# CRÉATION TABLES OFFICIELLES# =========================
+connexion = sqlite3.connect("jarvis.db")
+curseur = connexion.cursor()
+try:
+curseur.execute("""
+ALTER TABLE competences_eps
+ADD COLUMN mots_cles TEXT
+""")
+except:
+pass
+curseur.execute("""
+CREATE TABLE IF NOT EXISTS apsa (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+nom TEXT,
+cycle TEXT
+)
+""")
+curseur.execute("""
+CREATE TABLE IF NOT EXISTS attendus (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+apsa TEXT,
+cycle TEXT,
+attendu TEXT
+)
+""")
+curseur.execute("""
+CREATE TABLE IF NOT EXISTS competences_eps (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+apsa TEXT,
+cycle TEXT,
+contenu_prioritaire TEXT,
+mots_cles TEXT, 
+competence TEXT,
+attendu_associe TEXT
+)
+""")
+connexion.commit()
+connexion.close()
+def dictee_vocale():
+q = queue.Queue()
+modele = Model("vosk-model-small-fr-0.22")
+recognizer = KaldiRecognizer(modele,16000 )
+def callback(indata, frames, time, status):q.put(bytes(indata))
+print("Parlez...")
+with sd.RawInputStream(
+samplerate=16000,
+blocksize=8000,
+dtype=“int16”,
+channels=1,
+callback=callback
+):
+while True:
+data = q.get()
+if recognizer.AcceptWaveform(data):
+resultat = json.loads(
+recognizer.Result()
+)
+texte = resultat[“text”]
+if texte != "":
+print(texte)
+return texteimport refrom datetime import datetime
+def analyser_seance(texte):
+resultat = {}
+texte_min = texte.lower()
+# Dateif “aujourd” in texte_min:resultat[“date”] = datetime.today().strftime("%d/%m/%Y")else:resultat[“date”] = ""
+# Classe
+m = re.search(r"(?:classe\s+de\s+|pour\s+les\s+|pour\s+la\s+)?(6|six|5|cinq|4|quatre|3|trois)\s*([a-z])",texte_min )
+if m:
+niveau = m.group(1)
+conversion = {“six”: “6”,“cinq”: “5”,“quatre”: “4”,“trois”: “3” }
+niveau = conversion.get(niveau, niveau)
+resultat[“classe”] = niveau + m.group(2).upper()
+else:
+resultat[“classe”] = ""
+# APSAliste_apsa = [“handball”,“football”,“basket”,“volley”,“badminton”,"athlétisme",“gymnastique”,“natation”,“escalade”,“danse”,“tennis de table” ]
+resultat[“activite”] = ""
+for apsa in liste_apsa:
+if apsa in texte_min:resultat[“activite”] = apsa.capitalize()break
+# Observations
+if "pas d'observation" in texte_min:resultat[“observations”] = “Aucune”else:resultat[“observations”] = ""
+contenu = texte
+# enlever les commandescontenu = re.sub(r"ajoute une séance", "", contenu, flags=re.IGNORECASE)contenu = re.sub(r"ajouter une séance", "", contenu, flags=re.IGNORECASE)
+# enlever la datecontenu = re.sub(r"aujourd'hui", "", contenu, flags=re.IGNORECASE)
+# enlever la classecontenu = re.sub(r"(pour les|pour la|classe de)?\s*(six|cinq|quatre|trois|6|5|4|3)\s*[A-Za-z]","",contenu,flags=re.IGNORECASE )
+# enlever l'APSAfor apsa in liste_apsa:contenu = re.sub(r"\ben\s+" + re.escape(apsa) + r"\b","",contenu,flags=re.IGNORECASE )contenu = re.sub(r"\b" + re.escape(apsa) + r"\b","",contenu,flags=re.IGNORECASE )
+# enlever les observationscontenu = re.sub(r"pas d'observation particulière","",contenu,flags=re.IGNORECASE )
+contenu = re.sub(r"pas d'observation","",contenu,flags=re.IGNORECASE )
+contenu = “ ”.join(contenu.split())
+resultat[“contenu”] = contenu
+return resultat
+import re
+def trouver_cycle(classe):
+classe = classe.lower().strip()
+if “pro” in classe:return "Lycée Pro"
+if “gt” in classe or "général" in classe or “general” in classe:return "Lycée Général"
+m = re.search(r"\d+", classe)
+if not m:return ""
+niveau = int(m.group())
+if niveau == 6:return “Cycle 3”
+elif niveau in [5, 4, 3]:return “Cycle 4”
+elif niveau in [2, 1, 0]:return "Lycée Général"
+return ""
+# =========================# FONCTION AJOUT SÉANCE# =========================
+def ouvrir_ajout_seance():
+fenetre_seance = tk.Toplevel()
+fenetre_seance.title("Ajouter une séance")
+fenetre_seance.geometry(“500x600”)
+# DATEtk.Label(fenetre_seance,text=“Date” ).pack()
+entree_date = tk.Entry(fenetre_seance,width=40 )
+entree_date.pack(pady=5)
+# CLASSEtk.Label(fenetre_seance,text=“Classe” ).pack()
+entree_classe = tk.Entry(fenetre_seance,width=40 )
+entree_classe.pack(pady=5)
+# ACTIVITÉtk.Label(fenetre_seance,text="Activité" ).pack()
+entree_activite = tk.Entry(fenetre_seance,width=40 )
+entree_activite.pack(pady=5)
+# CONTENUtk.Label(fenetre_seance,text=“Contenu” ).pack()
+entree_contenu = tk.Text(fenetre_seance,width=40,height=5 )
+entree_contenu.pack(pady=5)
+def dicter_contenu():
+texte = dictee_vocale()
+entree_contenu.delete("1.0", tk.END)
+entree_contenu.insert("1.0", texte)
+
+tk.Button(
+fenetre_seance,
+text="🎤 Dicter",
+command=dicter_contenu,
+width=20
+).pack(pady=5)
+
+
+# OBSERVATIONStk.Label(fenetre_seance,text=“Observations” ).pack()
+entree_observations = tk.Text(fenetre_seance,width=40,height=4 )
+entree_observations.pack(pady=5)
+# =========================# SAUVEGARDE# =========================
+def sauvegarder_seance():
+date = entree_date.get()
+classe = entree_classe.get()
+cycle = trouver_cycle(classe)
+activite = entree_activite.get()
+contenu = entree_contenu.get("1.0",tk.END )
+
+observations = entree_observations.get("1.0",tk.END )
+contenu_analyse = contenu.lower()
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT contenu_prioritaire, mots_cles, competence, attendu_associe
+FROM competences_eps
+WHERE cycle = ? 
+""", (cycle,))
+competences_base = curseur.fetchall()
+texte_competences = ""
+for ligne in competences_base:
+contenu_prioritaire = ligne[0]mots_cles = ligne[1]competence = ligne[2]attendu = ligne[3]
+mots_cles = ligne[1] or ""liste_mots = mots_cles.lower().split(",")
+for mot in liste_mots:
+mot = mot.strip()
+if mot and mot in contenu_analyse:
+texte_competences += (
+"Contenu prioritaire : "+ contenu_prioritaire+ "\n\n"
++ "Compétence construite :\n"+ competence+ "\n\n"
++ "Attendu associé :\n"+ attendu+ "\n\n"
+)
+break
+competences = texte_competences connexion.close()
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT contenu_prioritaire, competence, attendu_associe
+FROM competences_eps
+WHERE apsa = ? AND cycle = ?
+LIMIT 1
+""", (
+activite,cycle
+))
+resultat_eps = curseur.fetchone()
+if resultat_eps:
+contenu_prioritaire = resultat_eps[0]
+competence_auto = resultat_eps[1]
+attendu_auto = resultat_eps[2]
+contenu = f"""
+Situation proposée :
+{contenu}
+Contenu prioritaire :
+{contenu_prioritaire}
+Attendu de fin de cycle :
+{attendu_auto}
+"""
+if competences.strip() == "":competences = competence_auto
+connexion = sqlite3.connect("jarvis.db")
+curseur = connexion.cursor()
+curseur.execute("""
+INSERT INTO cahier_texte (date, classe, activite, contenu, competences, observations)
+VALUES (?, ?, ?, ?, ?, ?)
+""", (
+date,classe,activite,contenu,competences,observations
+))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Séance enregistrée." )
+fenetre_seance.destroy()
+def dicter_seance():
+texte = dictee_vocale()
+if texte == "":return
+infos = analyser_seance(texte)
+# Dateentree_date.delete(0, tk.END)entree_date.insert(0, infos[“date”])
+# Classeentree_classe.delete(0, tk.END)entree_classe.insert(0, infos[“classe”])
+# Activitéentree_activite.delete(0, tk.END)entree_activite.insert(0, infos[“activite”])
+# Contenuentree_contenu.delete("1.0", tk.END)entree_contenu.insert("1.0", infos[“contenu”])
+# Observationsentree_observations.delete("1.0", tk.END)entree_observations.insert("1.0", infos[“observations”])
+bouton_dictee = tk.Button(
+fenetre_seance,
+text="🎤 Dicter toute la séance",
+command=dicter_seance,
+width=30,height=2
+)
+bouton_dictee.pack(pady=10)
+# BOUTON SAUVEGARDEbouton_sauvegarder = tk.Button(
+fenetre_seance,
+text="Enregistrer la séance",
+command=sauvegarder_seance,
+width=30,height=2
+)
+bouton_sauvegarder.pack(pady=20)
+# =========================# EXPORT PDF# =========================
+def exporter_pdf():
+from reportlab.platypus import (SimpleDocTemplate,Paragraph,Spacer )
+from reportlab.lib.styles import (getSampleStyleSheet )
+connexion = sqlite3.connect("jarvis.db")
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT date, classe, activite, contenu, competences, observations
+FROM cahier_texte
+""")
+resultats = curseur.fetchall()
+connexion.close()
+document = SimpleDocTemplate("cahier_eps.pdf" )
+styles = getSampleStyleSheet()
+elements = []
+titre = Paragraph(“Cahier de texte EPS”,styles[“Title”] )
+elements.append(titre)
+elements.append(Spacer(1, 20))
+for ligne in resultats:
+texte = f""" <b>Date :</b> {ligne[0]}<br/> <b>Classe :</b> {ligne[1]}<br/> <b>Activité :</b> {ligne[2]}<br/> <b>Contenu :</b> {ligne[3]}<br/> <b>Compétences :</b> {ligne[4]}<br/> <b>Observations :</b> {ligne[5]}<br/><br/> """
+paragraphe = Paragraph(texte,styles[“BodyText”] )
+elements.append(paragraphe)
+elements.append(Spacer(1, 15))
+document.build(elements)
+messagebox.showinfo("Succès","PDF créé avec succès." )
+# =========================# EXPORT WORD# =========================
+def exporter_word():
+from docx import Document
+connexion = sqlite3.connect("jarvis.db")
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT date, classe, activite, contenu, competences, observations
+FROM cahier_texte
+""")
+resultats = curseur.fetchall()
+connexion.close()
+document = Document()
+document.add_heading(“Cahier de texte EPS”,level=1 )
+for ligne in resultats:
+document.add_heading(f"{ligne[0]} - {ligne[1]}",level=2 )
+document.add_paragraph(f"Activité : {ligne[2]}" )
+document.add_paragraph(f"Contenu : {ligne[3]}" )
+document.add_paragraph(f"Compétences : {ligne[4]}" )
+document.add_paragraph(f"Observations : {ligne[5]}" )
+document.save("cahier_eps.docx")
+messagebox.showinfo("Succès","Document Word créé." )
+# =========================# AFFICHER LES SÉANCES# =========================
+def voir_seances():
+fenetre_seances = tk.Toplevel()
+fenetre_seances.title("Séances EPS")
+fenetre_seances.geometry(“1000x500”)
+# =========================# RECHERCHE# =========================
+cadre_recherche = tk.Frame(fenetre_seances )
+cadre_recherche.pack(pady=10 )
+entree_recherche = tk.Entry(cadre_recherche,width=40 )
+entree_recherche.grid(row=0,column=0,padx=10 )
+
+
+# TABLEAUtableau = ttk.Treeview(
+fenetre_seances,
+columns=(“date”,“classe”,“activite” ),
+show=“headings” )
+# COLONNEStableau.heading(“date”,text=“Date” )
+tableau.heading(“classe”,text=“Classe” )
+tableau.heading(“activite”,text="Activité" )
+tableau.column(“date”,width=150 )
+tableau.column(“classe”,width=150 )
+tableau.column(“activite”,width=300 )
+tableau.pack(
+fill=“both”,expand=True,padx=20,pady=20
+)
+# SQLITEconnexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT id, date, classe, activite, contenu, competences, observations
+FROM cahier_texte
+ORDER BY date DESC
+""")
+resultats = curseur.fetchall()
+connexion.close()
+def rechercher_seances():
+mot_cle = entree_recherche.get().lower()
+for item in tableau.get_children():tableau.delete(item)
+for ligne in resultats:
+texte_recherche = f"{ligne[1]} {ligne[2]} {ligne[3]}".lower()
+if mot_cle in texte_recherche:
+tableau.insert(
+"",
+tk.END,
+values=(
+ligne[1],ligne[2],ligne[3]
+),
+tags=(ligne[0],)
+)def afficher_toutes_les_seances():
+for item in tableau.get_children():tableau.delete(item)
+for ligne in resultats:
+tableau.insert(
+"",
+tk.END,
+values=(
+ligne[1],ligne[2],ligne[3]
+),
+tags=(ligne[0],)
+)bouton_recherche = tk.Button(
+cadre_recherche,
+text=“Rechercher”,
+command=rechercher_seances
+)
+bouton_recherche.grid(row=0,column=1,padx=10 )
+bouton_tout = tk.Button(
+cadre_recherche,
+text=“Tout afficher”,
+command=afficher_toutes_les_seances
+)
+bouton_tout.grid(row=0,column=2,padx=10 )
+
+# AJOUT LIGNESfor ligne in resultats:
+tableau.insert(
+"",
+tk.END,
+values=(
+ligne[1],ligne[2],ligne[3]
+),
+tags=(ligne[0],)
+)
+# =========================# DOUBLE CLIC# =========================
+def ouvrir_details(event):
+selection = tableau.selection()
+if not selection:return
+item = tableau.item(selection)
+valeurs = item[“values”]
+date = valeurs[0]
+classe = valeurs[1]
+activite = valeurs[2]
+# ID SEANCEid_seance = item[“tags”][0]
+# SQLITEconnexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT contenu, competences, observations
+FROM cahier_texte
+WHERE id = ?
+""", (
+id_seance,
+))
+resultat = curseur.fetchone()
+connexion.close()
+# FENÊTRE DÉTAILfenetre_detail = tk.Toplevel()
+fenetre_detail.title("Détails séance" )
+fenetre_detail.geometry(“700x600” )
+texte = tk.Text(
+fenetre_detail,
+wrap=“word”,
+font=(“Arial”, 11)
+)
+texte.pack(
+fill=“both”,expand=True,padx=20,pady=20
+)
+contenu = f"""
+DATE :{date}
+CLASSE :{classe}
+ACTIVITÉ :{activite}
+====================
+CONTENU :
+{resultat[0]}
+====================
+COMPÉTENCES :
+{resultat[1]}
+====================
+OBSERVATIONS :
+{resultat[2]}"""
+texte.insert("1.0",contenu )
+# =========================# MODIFIER SÉANCE# =========================
+def modifier_seance():
+fenetre_modif = tk.Toplevel()
+fenetre_modif.title("Modifier séance" )
+fenetre_modif.geometry(“600x700” )
+# DATEtk.Label(fenetre_modif,text=“Date” ).pack()
+entree_date = tk.Entry(fenetre_modif,width=50 )
+entree_date.pack(pady=5)
+entree_date.insert(0,date )
+# CLASSEtk.Label(fenetre_modif,text=“Classe” ).pack()
+entree_classe = tk.Entry(fenetre_modif,width=50 )
+entree_classe.pack(pady=5)
+entree_classe.insert(0,classe )
+# ACTIVITÉtk.Label(fenetre_modif,text="Activité" ).pack()
+entree_activite = tk.Entry(fenetre_modif,width=50 )
+entree_activite.pack(pady=5)
+entree_activite.insert(0,activite )
+# CONTENUtk.Label(fenetre_modif,text=“Contenu” ).pack()
+entree_contenu = tk.Text(fenetre_modif,width=60,height=8 )
+entree_contenu.pack(pady=5)
+entree_contenu.insert("1.0",resultat[0] )
+# COMPÉTENCEStk.Label(fenetre_modif,text="Compétences" ).pack()
+entree_comp = tk.Text(fenetre_modif,width=60,height=6 )
+entree_comp.pack(pady=5)
+entree_comp.insert("1.0",resultat[1] )
+# OBSERVATIONStk.Label(fenetre_modif,text=“Observations” ).pack()
+entree_obs = tk.Text(fenetre_modif,width=60,height=6 )
+entree_obs.pack(pady=5)
+entree_obs.insert("1.0",resultat[2] )
+# SAUVEGARDEdef sauvegarder_modifications():
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+UPDATE cahier_texte
+SET
+date = ?, classe = ?, activite = ?, contenu = ?, competences = ?, observations = ?
+WHERE id = ?
+""", (
+entree_date.get(),
+entree_classe.get(),
+entree_activite.get(),
+entree_contenu.get("1.0",tk.END ),
+entree_comp.get("1.0",tk.END ),
+entree_obs.get("1.0",tk.END ),
+id_seance
+))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Séance modifiée." )
+fenetre_modif.destroy()
+# BOUTON SAVEbouton_save = tk.Button(
+fenetre_modif,
+text=“Sauvegarder modifications”,
+command=sauvegarder_modifications,
+width=30,height=2
+)
+bouton_save.pack(pady=20)
+# BOUTON MODIFIERbouton_modifier = tk.Button(
+fenetre_detail,
+text="Modifier la séance",
+command=modifier_seance,
+width=25,height=2
+)
+bouton_modifier.pack(pady=10)
+# =========================# SUPPRIMER SÉANCE# =========================
+def supprimer_seance():
+confirmation = messagebox.askyesno(“Confirmation”,"Supprimer cette séance ?" )
+if not confirmation:return
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("DELETE FROM cahier_texte WHERE id = ?", (id_seance,) )
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Séance supprimée." )
+fenetre_detail.destroy()
+bouton_supprimer = tk.Button(
+fenetre_detail,
+text="Supprimer la séance",
+command=supprimer_seance,
+width=25,height=2,
+bg=“red”,fg=“white”
+)
+bouton_supprimer.pack(pady=10)
+
+
+
+# DOUBLE CLICtableau.bind(
+"<Double-1>",
+ouvrir_details
+) 
+# =========================# GESTION ATTENDUS# =========================
+def ouvrir_attendus():
+fenetre_attendus = tk.Toplevel()
+fenetre_attendus.title(“Base des attendus” )
+fenetre_attendus.geometry(“800x500” )
+tk.Label(fenetre_attendus,text=“APSA” ).pack()
+entree_apsa = tk.Entry(fenetre_attendus,width=40 )
+entree_apsa.pack(pady=5)
+tk.Label(fenetre_attendus,text=“Cycle” ).pack()
+entree_cycle = tk.Entry(fenetre_attendus,width=40 )
+entree_cycle.pack(pady=5)
+# CONTENU PRIORITAIRE
+tk.Label(fenetre_attendus,text=“Contenu prioritaire” ).pack()
+entree_contenu = tk.Entry(fenetre_attendus,width=50 )
+entree_contenu.pack(pady=5)
+tk.Label(fenetre_attendus,text="Mots clés" ).pack()
+entree_mots_cles = tk.Entry(fenetre_attendus,width=70 )
+entree_mots_cles.pack(pady=5)
+tk.Label(fenetre_attendus,text="Compétence construite" ).pack()
+entree_competence = tk.Text(fenetre_attendus,width=70,height=4 )
+entree_competence.pack(pady=5)
+tk.Label(fenetre_attendus,text=“Attendu de fin de cycle” ).pack()
+entree_attendu = tk.Text(fenetre_attendus,width=70,height=5 )
+entree_attendu.pack(pady=5)
+def enregistrer_attendu():
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+INSERT INTO attendus (apsa, cycle, attendu)
+VALUES (?, ?, ?)
+""", (
+entree_apsa.get(),
+entree_cycle.get(),
+entree_attendu.get("1.0",tk.END )
+))
+curseur.execute(""" INSERT INTO competences_eps ( apsa, cycle, contenu_prioritaire, mots_cles, competence, attendu_associe ) VALUES (?, ?, ?, ?, ?, ?) """, (
+entree_apsa.get(),entree_cycle.get(),entree_contenu.get(),entree_mots_cles.get(),entree_competence.get("1.0",tk.END ),
+entree_attendu.get("1.0",tk.END )
+))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Attendu enregistré." )
+tk.Button(
+fenetre_attendus,
+text=“Enregistrer”,
+command=enregistrer_attendu,
+width=25,height=2
+).pack(pady=10)
+
+# =========================# BASE COMPÉTENCES EPS# =========================
+def ouvrir_ajout_competence():
+fenetre = tk.Toplevel()
+fenetre.title("Base compétences EPS" )
+fenetre.geometry(“700x600” )
+tk.Label(fenetre,text=“APSA” ).pack()
+entree_apsa = tk.Entry(fenetre,width=50 )
+entree_apsa.pack(pady=5)
+tk.Label(fenetre,text=“Cycle” ).pack()
+entree_cycle = tk.Entry(fenetre,width=50 )
+entree_cycle.pack(pady=5)
+tk.Label(fenetre,text=“Contenu prioritaire” ).pack()
+entree_contenu = tk.Entry(fenetre,width=60 )
+entree_contenu.pack(pady=5)
+tk.Label(fenetre,text="Compétence construite" ).pack()
+entree_competence = tk.Text(fenetre,width=60,height=4 )
+entree_competence.pack(pady=5)
+tk.Label(fenetre,text="Attendu associé" ).pack()
+entree_attendu = tk.Text(fenetre,width=60,height=4 )
+entree_attendu.pack(pady=5)
+def enregistrer():
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+INSERT INTO competences_eps
+( apsa, cycle, contenu_prioritaire, competence, attendu_associe )
+VALUES (?, ?, ?, ?, ?)
+""", (
+entree_apsa.get(),
+entree_cycle.get(),
+entree_contenu.get(),
+entree_competence.get("1.0",tk.END ),
+entree_attendu.get("1.0",tk.END )
+))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Compétence enregistrée." )
+tk.Button(
+fenetre,
+text=“Enregistrer”,
+command=enregistrer,
+width=25,height=2
+).pack(pady=20)
+# =========================# CONSULTER BASE EPS# =========================
+def consulter_base_eps():
+fenetre_base = tk.Toplevel()
+fenetre_base.title(“Base EPS” )
+fenetre_base.geometry(“1200x600” )
+notebook = ttk.Notebook(fenetre_base )
+notebook.pack(fill=“both”,expand=True )
+# =========================# ONGLET ATTENDUS# =========================
+onglet_attendus = tk.Frame(notebook )
+notebook.add(onglet_attendus,text=“Attendus” )
+cadre_recherche = tk.Frame(onglet_attendus)
+cadre_recherche.pack(pady=10)
+entree_recherche = tk.Entry(cadre_recherche,width=40)
+entree_recherche.grid(row=0,column=0,padx=10)
+tableau_attendus = ttk.Treeview(
+onglet_attendus,
+columns=(
+“apsa”,“cycle”,“attendu”
+),
+show=“headings” )
+tableau_attendus.heading(“apsa”,text=“APSA” )
+tableau_attendus.heading(“cycle”,text=“Cycle” )
+tableau_attendus.heading(“attendu”,text=“Attendu” )
+tableau_attendus.pack(fill=“both”,expand=True )
+
+# =========================# CHARGEMENT ATTENDUS# =========================
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT id, apsa, cycle, attendu
+FROM attendus
+""")
+resultats = curseur.fetchall()
+def rechercher_attendu():
+mot = entree_recherche.get().lower()
+for item in tableau_attendus.get_children():tableau_attendus.delete(item)
+connexion = sqlite3.connect("jarvis.db")curseur = connexion.cursor()
+curseur.execute("""
+SELECT id, apsa, cycle, attendu
+FROM attendus
+""")
+lignes = curseur.fetchall()
+connexion.close()
+for ligne in lignes:
+texte = (str(ligne[1]) + “ ” +str(ligne[2]) + “ ” +str(ligne[3]) ).lower()
+if mot in texte:
+tableau_attendus.insert(
+"",
+tk.END,
+values=(
+ligne[1],ligne[2],ligne[3]
+),
+tags=(ligne[0],)
+)
+
+
+def supprimer_attendu():
+selection = tableau_attendus.selection()
+if not selection:return
+item = tableau_attendus.item(selection)
+id_attendu = item[“tags”][0]
+connexion = sqlite3.connect("jarvis.db")curseur = connexion.cursor()
+curseur.execute(
+"DELETE FROM attendus WHERE id = ?",
+(id_attendu,)
+)
+connexion.commit()connexion.close()
+messagebox.showinfo("Succès","Attendu supprimé." )
+tableau_attendus.delete(selection[0])
+for ligne in resultats:
+tableau_attendus.insert(
+"",
+tk.END,
+values=(
+ligne[1],ligne[2],ligne[3]
+),
+tags=(ligne[0],)
+)
+def modifier_attendu():
+selection = tableau_attendus.selection()
+if not selection:return
+item = tableau_attendus.item(selection)
+valeurs = item[“values”]
+id_attendu = item[“tags”][0]
+fenetre_modif = tk.Toplevel()
+fenetre_modif.title(“Modifier attendu” )
+fenetre_modif.geometry(“600x400” )
+tk.Label(fenetre_modif,text=“APSA” ).pack()
+entree_apsa = tk.Entry(fenetre_modif,width=50 )
+entree_apsa.pack()
+entree_apsa.insert(0,valeurs[0] )
+tk.Label(fenetre_modif,text=“Cycle” ).pack()
+entree_cycle = tk.Entry(fenetre_modif,width=50 )
+entree_cycle.pack()
+entree_cycle.insert(0,valeurs[1] )
+tk.Label(fenetre_modif,text=“Attendu” ).pack()
+texte_attendu = tk.Text(fenetre_modif,width=60,height=8 )
+texte_attendu.pack()
+texte_attendu.insert("1.0",valeurs[2] )
+def sauvegarder():
+connexion = sqlite3.connect("jarvis.db")curseur = connexion.cursor()
+curseur.execute("""
+UPDATE attendus SET apsa = ?, cycle = ?, attendu = ? WHERE id = ?
+""", (
+entree_apsa.get(),entree_cycle.get(),texte_attendu.get("1.0", tk.END),id_attendu
+))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Attendu modifié." )
+fenetre_modif.destroy()
+tk.Button(fenetre_modif,text=“sauvegarder”,command=sauvegarder,width=20,height=2 ).pack(pady=15)
+
+
+tk.Button(cadre_recherche,text=“Rechercher”,command=rechercher_attendu ).grid(row=0,column=1,padx=10)
+tk.Button(onglet_attendus,text=“Supprimer”,command=supprimer_attendu,bg=“red”,fg=“white”).pack(pady=10)tk.Button(
+onglet_attendus,
+text=“Modifier”,
+command=modifier_attendu
+).pack(pady=10)
+# =========================# ONGLET COMPÉTENCES# =========================
+onglet_comp = tk.Frame(notebook )
+notebook.add(onglet_comp,text="Compétences" )
+cadre_recherche_comp = tk.Frame(onglet_comp)
+cadre_recherche_comp.pack(pady=10)
+entree_recherche_comp = tk.Entry(cadre_recherche_comp,width=40)
+entree_recherche_comp.grid(row=0,column=0,padx=10)
+tableau_comp = ttk.Treeview(
+onglet_comp,
+columns=(
+“apsa”,“cycle”,“contenu”,“mots_cles”,“competence”
+),
+show=“headings” )
+tableau_comp.heading(“apsa”,text=“APSA” )
+tableau_comp.heading(“cycle”,text=“Cycle” )
+tableau_comp.heading(“contenu”,text=“Contenu prioritaire” )
+tableau_comp.heading(“mots_cles”,text="Mots clés" )
+tableau_comp.heading(“competence”,text="Compétence construite" )
+tableau_comp.pack(fill=“both”,expand=True )
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT id, apsa, cycle, contenu_prioritaire, mots_cles, competence
+FROM competences_eps
+""")
+resultats = curseur.fetchall()connexion.close()
+for ligne in resultats:
+tableau_comp.insert(
+"",
+tk.END,
+values=(
+ligne[1],ligne[2],ligne[3],ligne[4],ligne[5],
+),
+tags=(ligne[0],)
+)
+def rechercher_competence():
+mot = entree_recherche_comp.get().lower()
+for item in tableau_comp.get_children():tableau_comp.delete(item)
+connexion = sqlite3.connect("jarvis.db")curseur = connexion.cursor()
+curseur.execute("""
+SELECT id, apsa, cycle, contenu_prioritaire, mots_cles, competence
+FROM competences_eps
+""")
+lignes = curseur.fetchall()
+connexion.close()
+for ligne in lignes:
+texte = (str(ligne[1]) + “ ” +str(ligne[2]) + “ ” +str(ligne[3]) + “ ” +str(ligne[4]) + “ ” +str(ligne[5]) ).lower()
+if mot in texte:
+tableau_comp.insert(
+"",
+tk.END,
+values=(
+ligne[1],ligne[2],ligne[3],ligne[4],ligne[5]
+),
+tags=(ligne[0],)
+)tk.Button(
+cadre_recherche_comp,
+text=“Rechercher”,
+command=rechercher_competence
+).grid(row=0,column=1,padx=10)def supprimer_competence():
+selection = tableau_comp.selection()
+if not selection:return
+item = tableau_comp.item(selection)
+id_comp = item[“tags”][0]
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute(
+"DELETE FROM competences_eps WHERE id = ?",
+(id_comp,)
+)
+connexion.commit()connexion.close()
+tableau_comp.delete(selection[0])
+messagebox.showinfo("Succès","Compétence supprimée." ) 
+def modifier_competence():
+selection = tableau_comp.selection()
+if not selection:return
+item = tableau_comp.item(selection)
+valeurs = item[“values”]
+apsa = valeurs[0]cycle = valeurs[1]contenu = valeurs[2]mots_cles = valeurs[3]competence = valeurs[4]
+id_comp = item[“tags”][0]
+fenetre_modif = tk.Toplevel()
+fenetre_modif.title("Modifier compétence" )
+tk.Label(fenetre_modif,text=“APSA” ).pack()
+entree_apsa = tk.Entry(fenetre_modif,width=50 )
+entree_apsa.pack()
+entree_apsa.insert(0,apsa )
+tk.Label(fenetre_modif,text=“Cycle” ).pack()
+entree_cycle = tk.Entry(fenetre_modif,width=50 )
+entree_cycle.pack()
+entree_cycle.insert(0,cycle )
+tk.Label(fenetre_modif,text=“Contenu prioritaire” ).pack()
+entree_contenu = tk.Entry(fenetre_modif,width=50 )
+entree_contenu.pack()
+entree_contenu.insert(0,contenu )tk.Label(fenetre_modif,text="Mots clés" ).pack()
+entree_mots_cles = tk.Entry(fenetre_modif,width=50)
+entree_mots_cles.pack()
+entree_mots_cles.insert(0,mots_cles)
+tk.Label(fenetre_modif,text="Compétence" ).pack()
+entree_comp = tk.Text(fenetre_modif,width=60,height=5 )
+entree_comp.pack()
+entree_comp.insert("1.0",competence ) 
+
+
+def sauvegarder_modification_comp():
+connexion = sqlite3.connect("jarvis.db")curseur = connexion.cursor()
+curseur.execute("""
+UPDATE competences_eps SET apsa = ?, cycle = ?, contenu_prioritaire = ?, mots_cles = ?, competence = ? WHERE id = ?
+""", (
+entree_apsa.get(),entree_cycle.get(),entree_contenu.get(),entree_mots_cles.get(),entree_comp.get("1.0", tk.END),id_comp
+))connexion.commit()connexion.close()
+tableau_comp.item(
+selection[0],
+values=(
+entree_apsa.get(),entree_cycle.get(),entree_contenu.get(),entree_mots_cles.get(),entree_comp.get("1.0", tk.END)
+)
+)
+messagebox.showinfo("Succès","Compétence modifiée." )
+fenetre_modif.destroy()tk.Button(fenetre_modif,text=“Sauvegarder”,command=sauvegarder_modification_comp,
+width=20,height=2 ).pack(pady=20)
+tk.Button(
+onglet_comp,
+text=“Supprimer”,
+command=supprimer_competence,
+bg=“red”,fg=“white”
+).pack(pady=10)tk.Button(
+onglet_comp,
+text=“Modifier”,
+command=modifier_competence,
+width=20,height=2
+).pack(pady=10)
+
+# =========================# FENÊTRE PRINCIPALE# =========================
+fenetre = tk.Tk()
+fenetre.configure(bg="#EAEAEA")
+fenetre.title(“JARVIS EPS”)
+fenetre.geometry(“1100x700”)
+# =========================# CADRE PRINCIPAL# =========================
+cadre = tk.Frame(
+fenetre,
+bg=“white”,
+padx=20,pady=20
+)
+cadre.pack(
+fill=“both”,expand=True,padx=20,pady=20
+)
+
+
+# TITREtitre = tk.Label(
+cadre,
+text=“JARVIS EPS”,
+font=(“Arial”, 28, “bold”),
+bg=“white”
+)
+titre.pack(pady=20)
+texte = tk.Label(
+cadre,
+text="Assistant pédagogique EPS",
+font=(“Arial”, 14),
+bg=“white”
+)
+texte.pack(pady=10)
+# =========================# CADRE BOUTONS# =========================
+cadre_boutons = tk.Frame(cadre,bg=“white”)
+cadre_boutons.pack(pady=20)
+# =========================# BOUTON AJOUT SÉANCE# =========================bouton_seance = tk.Button(
+cadre_boutons,
+text="Ajouter une séance",
+command=ouvrir_ajout_seance,
+width=30,height=2
+)bouton_seance.grid(row=0,column=0,padx=10,pady=10)
+
+
+# =========================# AUTRES BOUTONS# =========================
+# =========================# AJOUT ÉLÈVE# =========================
+def ouvrir_ajout_eleve():
+fenetre_eleve = tk.Toplevel()
+fenetre_eleve.title("Ajouter un élève")
+fenetre_eleve.geometry(“400x300”)
+# CLASSEtk.Label(fenetre_eleve,text=“Classe” ).pack()
+entree_classe = tk.Entry(fenetre_eleve,width=30 )
+entree_classe.pack(pady=5)
+# NOMtk.Label(fenetre_eleve,text=“Nom” ).pack()
+entree_nom = tk.Entry(fenetre_eleve,width=30 )
+entree_nom.pack(pady=5)
+# SAUVEGARDEdef sauvegarder_eleve():
+classe = entree_classe.get()
+nom = entree_nom.get()
+connexion = sqlite3.connect("jarvis.db")
+curseur = connexion.cursor()
+curseur.execute("""
+INSERT INTO eleves (classe, nom, oublis, absences, dispenses)
+VALUES (?, ?, ?, ?, ?)
+""", (
+classe,nom,0,0,0
+))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Élève ajouté." )
+fenetre_eleve.destroy()
+# BOUTONbouton_sauvegarder = tk.Button(
+fenetre_eleve,
+text="Ajouter l'élève",
+command=sauvegarder_eleve,
+width=25,height=2
+)
+bouton_sauvegarder.pack(pady=20)
+# =========================# BOUTON AJOUT ÉLÈVE# =========================
+bouton_eleve = tk.Button(
+cadre_boutons,
+text="Ajouter un élève",
+command=ouvrir_ajout_eleve,
+width=30,height=2
+)
+bouton_eleve.grid(row=0,column=1,padx=10,pady=10)
+
+
+# =========================# STATISTIQUES ÉLÈVES# =========================
+def voir_statistiques():
+fenetre_stats = tk.Toplevel()
+fenetre_stats.title("Statistiques élèves" )
+fenetre_stats.geometry(“900x500” )
+# TABLEAUtableau = ttk.Treeview(
+fenetre_stats,
+columns=(
+“classe”,“nom”,“oublis”,“absences”,“dispenses”
+),
+show=“headings” )
+# TITREStableau.heading(“classe”,text=“Classe” )
+tableau.heading(“nom”,text=“Nom” )
+tableau.heading(“oublis”,text=“Oublis” )
+tableau.heading(“absences”,text=“Absences” )
+tableau.heading(“dispenses”,text=“Dispenses” )
+tableau.pack(
+fill=“both”,expand=True,padx=20,pady=20
+)
+# SQLITEconnexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT classe, nom, oublis, absences, dispenses
+FROM eleves
+ORDER BY classe, nom
+""")
+resultats = curseur.fetchall()
+connexion.close()
+# AJOUT TABLEAUfor ligne in resultats:
+tableau.insert(
+"",
+tk.END,
+values=(
+ligne[0],ligne[1],ligne[2],ligne[3],ligne[4]
+)
+)
+# =========================# AJOUTER OUBLI# =========================
+def ajouter_oubli():
+selection = tableau.selection()
+if not selection:return
+item = tableau.item(selection)
+valeurs = item[“values”]
+nom = valeurs[1]
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+UPDATE eleves
+SET oublis = oublis + 1
+WHERE nom = ?
+""", (nom,))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Oubli ajouté." )
+fenetre_stats.destroy()
+voir_statistiques()
+# =========================# AJOUTER ABSENCE# =========================
+def ajouter_absence():
+selection = tableau.selection()
+if not selection:return
+item = tableau.item(selection)
+valeurs = item[“values”]
+nom = valeurs[1]
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+UPDATE eleves
+SET absences = absences + 1
+WHERE nom = ?
+""", (nom,))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Absence ajoutée." )
+fenetre_stats.destroy()
+voir_statistiques()
+# =========================# AJOUTER DISPENSE# =========================
+def ajouter_dispense():
+selection = tableau.selection()
+if not selection:return
+item = tableau.item(selection)
+valeurs = item[“values”]
+nom = valeurs[1]
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+UPDATE eleves
+SET dispenses = dispenses + 1
+WHERE nom = ?
+""", (nom,))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Dispense ajoutée." )
+fenetre_stats.destroy()
+voir_statistiques()
+# =========================# SUPPRIMER ÉLÈVE# =========================
+def supprimer_eleve():
+selection = tableau.selection()
+if not selection:return
+item = tableau.item(selection)
+valeurs = item[“values”]
+nom = valeurs[1]
+confirmation = messagebox.askyesno(
+“Confirmation”,
+f"Supprimer {nom} ?"
+)
+if not confirmation:return
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute(
+"DELETE FROM eleves WHERE nom = ?",
+(nom,)
+)
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Élève supprimé." )
+fenetre_stats.destroy()
+voir_statistiques()
+# =========================# MODIFIER ÉLÈVE# =========================
+def modifier_eleve():
+selection = tableau.selection()
+if not selection:return
+item = tableau.item(selection)
+valeurs = item[“values”]
+classe_actuelle = valeurs[0]nom_actuel = valeurs[1]
+fenetre_modif = tk.Toplevel()
+fenetre_modif.title("Modifier élève" )
+fenetre_modif.geometry(“400x250” )
+tk.Label(fenetre_modif,text=“Classe” ).pack(pady=5)
+entree_classe = tk.Entry(fenetre_modif,width=30 )
+entree_classe.pack()
+entree_classe.insert(0,classe_actuelle )
+tk.Label(fenetre_modif,text=“Nom” ).pack(pady=5)
+entree_nom = tk.Entry(fenetre_modif,width=30 )
+entree_nom.pack()
+entree_nom.insert(0,nom_actuel )
+def sauvegarder():
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+UPDATE eleves
+SET classe = ?, nom = ?
+WHERE nom = ?
+""", (
+entree_classe.get(),entree_nom.get(),nom_actuel
+))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Élève modifié." )
+fenetre_modif.destroy()
+fenetre_stats.destroy()
+voir_statistiques()
+tk.Button(
+fenetre_modif,
+text=“Sauvegarder”,
+command=sauvegarder,
+width=20,height=2
+).pack(pady=20)
+# =========================# REMISE À ZÉRO# =========================
+def reinitialiser_compteurs():
+selection = tableau.selection()
+if not selection:return
+item = tableau.item(selection)
+valeurs = item[“values”]
+nom = valeurs[1]
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+UPDATE eleves
+SET
+oublis = 0, absences = 0, dispenses = 0
+WHERE nom = ?
+""", (nom,))
+connexion.commit()
+connexion.close()
+messagebox.showinfo("Succès","Compteurs remis à zéro." )
+fenetre_stats.destroy()
+voir_statistiques()
+# =========================# BOUTONS ACTIONS# =========================
+cadre_boutons = tk.Frame(fenetre_stats )
+cadre_boutons.pack(pady=10)
+# BOUTON OUBLIbouton_oubli = tk.Button(
+cadre_boutons,
+text="+1 Oubli",
+command=ajouter_oubli,
+width=15,height=2
+)
+bouton_oubli.grid(row=0,column=0,padx=10 )
+# BOUTON ABSENCEbouton_absence = tk.Button(
+cadre_boutons,
+text="+1 Absence",
+command=ajouter_absence,
+width=15,height=2
+)
+bouton_absence.grid(row=0,column=1,padx=10 )
+# BOUTON DISPENSEbouton_dispense = tk.Button(
+cadre_boutons,
+text="+1 Dispense",
+command=ajouter_dispense,
+width=15,height=2
+)
+bouton_dispense.grid(row=0,column=2,padx=10 )
+# BOUTON SUPPRIMERbouton_supprimer = tk.Button(
+cadre_boutons,
+text="Supprimer élève",
+command=supprimer_eleve,
+width=15,height=2,
+bg=“red”,fg=“white”
+)
+bouton_supprimer.grid(row=0,column=3,padx=10)# BOUTON MODIFIER
+bouton_modifier = tk.Button(
+cadre_boutons,
+text=“Modifier”,
+command=modifier_eleve,
+width=15,height=2
+)
+bouton_modifier.grid(row=0,column=4,padx=10 )
+# BOUTON RESET
+bouton_reset = tk.Button(
+cadre_boutons,
+text=“Reset”,
+command=reinitialiser_compteurs,
+width=15,height=2
+)
+bouton_reset.grid(row=0,column=5,padx=10 )
+
+# =========================# BOUTON STATS# =========================
+bouton_stats = tk.Button(
+cadre_boutons,
+text="Voir statistiques élèves",
+command=voir_statistiques,
+width=30,height=2
+)
+bouton_stats.grid(row=1,column=0,padx=10,pady=10)
+# BOUTON VOIR SÉANCESbouton_voir = tk.Button(
+cadre_boutons,
+text="Voir les séances",
+command=voir_seances,
+width=30,height=2
+)
+bouton_voir.grid(row=1,column=1,padx=10,pady=10)
+bouton_pdf = tk.Button(
+cadre_boutons,
+text=“Exporter PDF”,
+command=exporter_pdf,
+width=30,height=2
+)
+bouton_pdf.grid(row=2,column=0,padx=10,pady=10)
+# BOUTON WORDbouton_word = tk.Button(
+cadre_boutons,
+text=“Exporter Word”,
+command=exporter_word,
+width=30,height=2
+)
+bouton_word.grid(row=2,column=1,padx=10,pady=10)
+# BOUTON ATTENDUS
+bouton_attendus = tk.Button(
+cadre_boutons,
+text=“Base des attendus”,
+command=ouvrir_attendus,
+width=30,height=2
+)
+bouton_attendus.grid(row=3,column=0,padx=10,pady=10)
+# BOUTON CONSULTER BASE EPS
+bouton_base = tk.Button(
+cadre_boutons,
+text=“Consulter base EPS”,
+command=consulter_base_eps,
+width=30,height=2
+)
+bouton_base.grid(row=3,column=1,padx=10,pady=10)
+
+# =========================# LANCEMENT# =========================
+# =========================# PANNEAU INFORMATIONS# =========================
+info = tk.Label(
+cadre,
+text="""Bienvenue dans JARVIS EPS
+✔ Gestion pédagogique✔ Cahier de texte✔ Suivi élèves✔ Exports PDF / Word✔ Base de données professionnelle""",
+font=(“Arial”, 12),
+justify=“left”,
+bg=“white”
+)
+info.pack(pady=30)
+# =========================# ALERTES ÉLÈVES# =========================
+def verifier_alertes():
+connexion = sqlite3.connect("jarvis.db" )
+curseur = connexion.cursor()
+curseur.execute("""
+SELECT nom, oublis, absences, dispenses
+FROM eleves
+WHERE oublis >= 3 OR absences >= 3 OR dispenses >= 3
+""")
+alertes = curseur.fetchall()
+connexion.close()
+if alertes:
+message = ""
+for eleve in alertes:
+message += (f"{eleve[0]} "f"(O:{eleve[1]} "f"A:{eleve[2]} "f"D:{eleve[3]})\n" )
+messagebox.showwarning("Alertes élèves",message )
+verifier_alertes()
+fenetre.mainloop()
