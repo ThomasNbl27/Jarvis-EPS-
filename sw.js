@@ -3,7 +3,7 @@
    Met l'application en cache pour qu'elle fonctionne sans connexion
    (gymnase, stade, sous-sol...). Les données restent dans le navigateur.
    ===================================================================== */
-var CACHE = "jarvis-eps-v1.0.0";
+var CACHE = "jarvis-eps-v1.1.0";
 
 var FICHIERS = [
   "./",
@@ -17,10 +17,12 @@ var FICHIERS = [
   "assets/js/speech.js",
   "assets/js/ui.js",
   "assets/js/exports.js",
+  "assets/js/pdf.js",
   "assets/js/views/accueil.js",
   "assets/js/views/seances.js",
   "assets/js/views/eleves.js",
   "assets/js/views/base.js",
+  "assets/js/views/pdf.js",
   "assets/js/views/reglages.js",
   "assets/js/app.js",
   "assets/icons/favicon.svg",

@@ -4,8 +4,8 @@
 (function (global) {
   "use strict";
 
-  var VERSION = "1.0.0";
-  var ORDRE = ["accueil", "seances", "eleves", "base", "reglages"];
+  var VERSION = "1.1.0";
+  var ORDRE = ["accueil", "seances", "eleves", "base", "pdf", "reglages"];
   var vueCourante = "accueil";
 
   var App = {

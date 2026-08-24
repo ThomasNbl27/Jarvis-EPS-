@@ -22,7 +22,7 @@
             UI.champ({ id: "x-classe", label: "Limiter à une classe", type: "select", valeur: "",
                        options: [{ valeur: "", libelle: "Toutes les classes" }].concat(classes) }) : "") +
           '<div class="list">' +
-            action("imprimer", "Imprimer / enregistrer en PDF", "Choisissez « Enregistrer au format PDF » dans la boîte d'impression", "pdf-seances") +
+            action("document", "Export PDF", "Onglet dédié : période, classe, options", "aller-pdf") +
             action("document", "Document Word", "Fichier .doc modifiable dans Word, Pages ou Google Docs", "word-seances") +
             action("tableur", "Tableur (CSV)", "S'ouvre dans Excel, Numbers ou LibreOffice", "csv-seances") +
           "</div>" +
@@ -32,7 +32,7 @@
       '<section class="section">' +
         '<div class="section__head"><h2>Exporter le suivi des élèves</h2></div>' +
         '<div class="list">' +
-          action("imprimer", "Imprimer / PDF", "Tableau récapitulatif par classe", "pdf-eleves") +
+          action("document", "PDF du suivi", "Tableau récapitulatif par classe", "pdf-eleves") +
           action("document", "Document Word", "Tableau des oublis, absences et dispenses", "word-eleves") +
           action("tableur", "Tableur (CSV)", "Pour vos propres calculs", "csv-eleves") +
         "</div>" +
@@ -131,10 +131,13 @@
 
     U.sur(conteneur, "click", "[data-do]", function (e, el) {
       switch (el.getAttribute("data-do")) {
-        case "pdf-seances":  Exports.imprimerSeances(filtre(), titre()); break;
+        case "aller-pdf":    App.aller("pdf"); break;
         case "word-seances": Exports.exporterWordSeances(filtre(), titre()); break;
         case "csv-seances":  Exports.exporterCSVSeances(filtre()); break;
-        case "pdf-eleves":   Exports.imprimerEleves(); break;
+        case "pdf-eleves":
+          try { U.telecharger("suivi-eleves-" + U.aujourdhui() + ".pdf", Vues.pdf.documentEleves()); UI.toast("PDF créé."); }
+          catch (err) { UI.toast("Création du PDF impossible.", "error"); }
+          break;
         case "word-eleves":  Exports.exporterWordEleves(); break;
         case "csv-eleves":   Exports.exporterCSVEleves(); break;
         case "sauvegarder":  Exports.sauvegarder(); break;

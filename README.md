@@ -70,16 +70,30 @@ Une douzaine de fiches d'**exemple** sont fournies au premier lancement pour mon
 mécanisme. Elles sont marquées « Exemple » et **doivent être adaptées** : ce ne sont pas les
 textes officiels du programme, seulement des modèles de départ.
 
-### Exports
+### Onglet PDF
+Un onglet dédié pour sortir le cahier de texte :
+
+- **période** : tout, ce mois-ci, les 3 derniers mois, ou deux dates précises ;
+- **filtres** : une classe, une activité ;
+- **contenu** : inclure ou non les compétences et les observations, une classe par page ;
+- un récapitulatif indique en direct combien de séances seront exportées, et sur quelle période.
+
+Le PDF est **un vrai fichier**, fabriqué dans le téléphone (format A4, numérotation des pages,
+titres et intitulés) — et non une impression déguisée. C'est important : `window.print()` ne
+fonctionne pas quand l'application est installée sur l'écran d'accueil d'un iPhone.
+
+Le tableau du suivi des élèves s'exporte de la même manière.
+
+### Autres exports
 | Format | Usage |
 |---|---|
-| **PDF** | Via l'impression du système → *Enregistrer au format PDF*. Mise en page A4 soignée |
 | **Word** (`.doc`) | S'ouvre dans Word, Pages ou Google Docs, et reste modifiable |
 | **CSV** | Pour Excel, Numbers ou LibreOffice (séparateur `;`, accents corrects) |
+| **Impression** | Pour imprimer directement depuis un ordinateur |
 | **Sauvegarde JSON** | Copie complète des données, à restaurer ou à transférer sur un autre téléphone |
 
-Le cahier peut être exporté en entier ou classe par classe. Sur téléphone, une séance peut
-aussi être envoyée directement par message via le bouton **Partager**.
+Sur téléphone, une séance peut aussi être envoyée directement par message via le bouton
+**Partager**, et le PDF transmis par mail ou messagerie via **Envoyer le PDF**.
 
 ---
 
@@ -128,8 +142,9 @@ assets/js/
   eps.js                      cycle, analyse de la dictée, mots-clés
   speech.js                   reconnaissance vocale
   ui.js                       icônes, panneaux, notifications, champs
-  exports.js                  PDF, Word, CSV, sauvegarde
-  views/                      accueil, séances, élèves, base EPS, réglages
+  exports.js                  Word, CSV, impression, sauvegarde
+  pdf.js                      générateur de PDF (sans bibliothèque)
+  views/                      accueil, séances, élèves, base EPS, PDF, réglages
   app.js                      navigation, thème, démarrage
 legacy/                       code Python d'origine (référence)
 AUDIT.md                      problèmes relevés dans ce code et corrections apportées
