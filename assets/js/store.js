@@ -12,6 +12,7 @@
   var vide = {
     version: VERSION,
     seances: [],
+    evenements: [],
     eleves: [],
     competences: [],
     attendus: [],
@@ -70,7 +71,7 @@
   function migrer(donnees) {
     var base = clone(vide);
     if (!donnees || typeof donnees !== "object") return base;
-    ["seances", "eleves", "competences", "attendus"].forEach(function (t) {
+    ["seances", "evenements", "eleves", "competences", "attendus"].forEach(function (t) {
       if (Array.isArray(donnees[t])) base[t] = donnees[t];
     });
     if (donnees.reglages && typeof donnees.reglages === "object") {
@@ -161,6 +162,7 @@
 
     /* Collections (créées après init) */
     seances: null,
+    evenements: null,
     eleves: null,
     competences: null,
     attendus: null,
@@ -179,6 +181,15 @@
       return etat.seances.slice().sort(function (a, b) {
         if (a.date === b.date) return (b.creeLe || "").localeCompare(a.creeLe || "");
         return (b.date || "").localeCompare(a.date || "");
+      });
+    },
+
+    /* ---- Événements ---- */
+    evenementsTries: function () {
+      return etat.evenements.slice().sort(function (a, b) {
+        var ka = (a.date || "") + " " + (a.heure || "24:00");
+        var kb = (b.date || "") + " " + (b.heure || "24:00");
+        return ka.localeCompare(kb);
       });
     },
 
@@ -251,7 +262,7 @@
       var entrant = migrer(donnees);
 
       if (mode === "fusionner") {
-        ["seances", "eleves", "competences", "attendus"].forEach(function (t) {
+        ["seances", "evenements", "eleves", "competences", "attendus"].forEach(function (t) {
           var connus = {};
           etat[t].forEach(function (e) { connus[e.id] = 1; });
           entrant[t].forEach(function (e) {
@@ -298,6 +309,7 @@
 
   Store.init();
   Store.seances = collection("seances");
+  Store.evenements = collection("evenements");
   Store.eleves = collection("eleves");
   Store.competences = collection("competences");
   Store.attendus = collection("attendus");

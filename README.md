@@ -95,6 +95,25 @@ Le tableau du suivi des élèves s'exporte de la même manière.
 Sur téléphone, une séance peut aussi être envoyée directement par message via le bouton
 **Partager**, et le PDF transmis par mail ou messagerie via **Envoyer le PDF**.
 
+### Agenda et rappels
+Un onglet **Agenda** pour les réunions, conseils de classe, rendez-vous parents et
+formations : calendrier mensuel, liste des événements à venir, catégories colorées.
+
+Chaque événement déclenche **un rappel la veille et un rappel 3 heures avant**
+(désactivables individuellement). Concrètement :
+
+- **application ouverte** : le rappel s'affiche dans l'application, et en notification
+  du navigateur là où c'est permis (Android, ordinateur) ;
+- **application fermée** : un site sans serveur ne peut pas notifier tout seul — c'est
+  une limite du web, pas un oubli. La solution fournie : **« Ajouter au calendrier du
+  téléphone »** sur l'événement crée un fichier calendrier avec **les deux alarmes
+  intégrées** ; l'iPad ou le téléphone notifie alors nativement, la veille et 3 h avant,
+  application fermée ou pas.
+
+L'agenda s'échange avec le calendrier Apple dans les deux sens : **Tout exporter (.ics)**
+envoie tous les événements vers le calendrier du téléphone, **Importer (.ics)** reprend un
+fichier exporté depuis Calendrier (les doublons sont ignorés).
+
 ### Code d'accès
 L'application demande un **code à 4 chiffres** à l'ouverture. Le code livré est **1707**.
 
@@ -162,9 +181,11 @@ assets/js/
   speech.js                   reconnaissance vocale
   ui.js                       icônes, panneaux, notifications, champs
   verrou.js                   code d'accès à 4 chiffres
+  ics.js                      lecture/écriture de fichiers calendrier (.ics)
+  rappels.js                  moteur de rappels (la veille, 3 h avant)
   exports.js                  Word, CSV, impression, sauvegarde
   pdf.js                      générateur de PDF (sans bibliothèque)
-  views/                      accueil, séances, élèves, base EPS, PDF, réglages
+  views/                      accueil, agenda, séances, élèves, base EPS, PDF, réglages
   app.js                      navigation, thème, démarrage
 legacy/                       code Python d'origine (référence)
 AUDIT.md                      problèmes relevés dans ce code et corrections apportées

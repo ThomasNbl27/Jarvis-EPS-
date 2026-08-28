@@ -71,6 +71,16 @@
         "</div>" +
       "</section>" : "") +
 
+      /* ---- Prochains événements ---- */
+      (Rappels.prochains(3).length ?
+      '<section class="section">' +
+        '<div class="section__head"><h2>Prochains événements</h2>' +
+          '<button class="link" data-aller="agenda" type="button">Agenda</button></div>' +
+        '<div class="list">' +
+          Rappels.prochains(3).map(ligneEvenement).join("") +
+        "</div>" +
+      "</section>" : "") +
+
       /* ---- Dernières séances ---- */
       '<section class="section">' +
         '<div class="section__head"><h2>Dernières séances</h2>' +
@@ -112,6 +122,9 @@
     });
     U.sur(conteneur, "click", "[data-seance]", function (e, el) {
       Vues.seances.ouvrirDetail(el.getAttribute("data-seance"));
+    });
+    U.sur(conteneur, "click", "[data-evenement]", function (e, el) {
+      Vues.agenda.ouvrirDetail(el.getAttribute("data-evenement"));
     });
     U.sur(conteneur, "click", "[data-sauvegarde]", function () {
       Exports.sauvegarder();
@@ -164,6 +177,21 @@
     if (!valeur) return "";
     return '<span class="badge' + (valeur >= seuil ? " badge--danger" : "") + '">' +
       libelle + " " + valeur + "</span>";
+  }
+
+  function ligneEvenement(evt) {
+    return '<button class="item" type="button" data-evenement="' + evt.id + '">' +
+      '<span class="avatar avatar--date avatar--accent">' +
+        U.jourDuMois(evt.date) + "<small>" + U.echapper(U.moisCourt(evt.date)) + "</small></span>" +
+      '<span class="item__main">' +
+        '<span class="item__title">' + U.echapper(evt.titre) + "</span>" +
+        '<span class="item__sub">' +
+          U.echapper(U.majuscule(U.dateRelative(evt.date)) +
+            (evt.heure ? " à " + Rappels.heureLisible(evt.heure) : "") +
+            (evt.lieu ? " · " + evt.lieu : "")) + "</span>" +
+      "</span>" +
+      UI.icone("chevron", "item__chev") +
+    "</button>";
   }
 
   function raccourci(ico, titre, sousTitre, action) {

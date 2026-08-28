@@ -4,8 +4,8 @@
 (function (global) {
   "use strict";
 
-  var VERSION = "1.2.0";
-  var ORDRE = ["accueil", "seances", "eleves", "base", "pdf", "reglages"];
+  var VERSION = "1.3.0";
+  var ORDRE = ["accueil", "agenda", "seances", "eleves", "base", "pdf", "reglages"];
   var vueCourante = "accueil";
 
   var App = {
@@ -54,12 +54,16 @@
     },
 
     majNavigation: function () {
-      var alertes = Store.alertes().length;
+      var pastilles = {
+        eleves: Store.alertes().length,
+        agenda: Rappels.aujourdhui()
+      };
 
       var onglets = ORDRE.map(function (nom) {
         var vue = Vues[nom];
-        var pastille = nom === "eleves" && alertes
-          ? '<span class="tab__badge">' + alertes + "</span>" : "";
+        var pastille = pastilles[nom]
+          ? '<span class="tab__badge' + (nom === "agenda" ? " tab__badge--calme" : "") + '">' +
+            pastilles[nom] + "</span>" : "";
         return '<button class="tab" type="button" data-vue="' + nom + '"' +
           (nom === vueCourante ? ' aria-current="page"' : "") + ">" +
           UI.icone(vue.icone) + pastille + "<span>" + U.echapper(vue.onglet) + "</span></button>";
@@ -68,8 +72,9 @@
 
       var liens = ORDRE.map(function (nom) {
         var vue = Vues[nom];
-        var pastille = nom === "eleves" && alertes
-          ? '<span class="navlink__badge">' + alertes + "</span>" : "";
+        var pastille = pastilles[nom]
+          ? '<span class="navlink__badge' + (nom === "agenda" ? " navlink__badge--calme" : "") + '">' +
+            pastilles[nom] + "</span>" : "";
         return '<button class="navlink" type="button" data-vue="' + nom + '"' +
           (nom === vueCourante ? ' aria-current="page"' : "") + ">" +
           UI.icone(vue.icone) + "<span>" + U.echapper(vue.onglet) + "</span>" + pastille + "</button>";
@@ -162,6 +167,7 @@
     },
 
     lancerInterface: function () {
+      Rappels.demarrer();
       var depart = (location.hash || "#accueil").slice(1);
       App.aller(Vues[depart] ? depart : "accueil");
     }

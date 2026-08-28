@@ -3,7 +3,7 @@
    Met l'application en cache pour qu'elle fonctionne sans connexion
    (gymnase, stade, sous-sol...). Les données restent dans le navigateur.
    ===================================================================== */
-var CACHE = "jarvis-eps-v1.2.0";
+var CACHE = "jarvis-eps-v1.3.0";
 
 var FICHIERS = [
   "./",
@@ -19,11 +19,14 @@ var FICHIERS = [
   "assets/js/verrou.js",
   "assets/js/exports.js",
   "assets/js/pdf.js",
+  "assets/js/ics.js",
+  "assets/js/rappels.js",
   "assets/js/views/accueil.js",
   "assets/js/views/seances.js",
   "assets/js/views/eleves.js",
   "assets/js/views/base.js",
   "assets/js/views/pdf.js",
+  "assets/js/views/agenda.js",
   "assets/js/views/reglages.js",
   "assets/js/app.js",
   "assets/icons/favicon.svg",
@@ -55,6 +58,19 @@ self.addEventListener("activate", function (e) {
 
 /* Réseau d'abord pour la navigation (mise à jour immédiate),
    cache d'abord pour les ressources (rapidité et hors-ligne). */
+/* Un appui sur une notification ramène à l'agenda. */
+self.addEventListener("notificationclick", function (e) {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (liste) {
+      for (var i = 0; i < liste.length; i++) {
+        if ("focus" in liste[i]) return liste[i].focus();
+      }
+      if (clients.openWindow) return clients.openWindow("./#agenda");
+    })
+  );
+});
+
 self.addEventListener("fetch", function (e) {
   var requete = e.request;
   if (requete.method !== "GET" || new URL(requete.url).origin !== location.origin) return;
